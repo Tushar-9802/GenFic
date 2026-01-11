@@ -1,9 +1,133 @@
-# Python
+# .gitignore
+# ============================================================================
+
+# Training Data (NEVER COMMIT)
+data/
+!data/examples/
+data/**/*
+!data/**/.gitkeep
+
+# Raw scraped content
+*.jsonl
+*.json
+!configs/**/*.json
+!data/examples/*.json
+
+# Text files 
+*.txt
+!requirements*.txt
+!LICENSE
+
+# ============================================================================
+# MODEL WEIGHTS 
+# ============================================================================
+
+# Model files
+models/
+!models/.gitkeep
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.onnx
+*.pb
+
+# Adapter weights
+adapter_config.json
+adapter_model.bin
+
+# ============================================================================
+# GENERATED OUTPUTS 
+# ============================================================================
+
+# All outputs
+outputs/
+!outputs/.gitkeep
+
+# Generation results
+generations/
+generated_*.txt
+
+# ============================================================================
+# CACHE & TEMPORARY FILES
+# ============================================================================
+
+# Scraper cache 
+cache/
+.cache/
+*.cache
+
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
+
+# ============================================================================
+# LOGS & MONITORING
+# ============================================================================
+
+# Log files 
+*.log
+logs/
+*.out
+*.err
+
+# Training logs
+runs/
+wandb/
+tensorboard/
+mlruns/
+
+# ============================================================================
+# PYTHON ENVIRONMENT
+# ============================================================================
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# ============================================================================
+# DEVELOPMENT TOOLS
+# ============================================================================
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ============================================================================
+# BUILD ARTIFACTS
+# ============================================================================
+
+# Python packaging
 build/
 develop-eggs/
 dist/
@@ -21,106 +145,110 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Virtual Environments
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
-.venv
+# PyInstaller
+*.manifest
+*.spec
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+# ============================================================================
+# DOCUMENTATION BUILD
+# ============================================================================
 
-# Jupyter Notebooks
-.ipynb_checkpoints
-*.ipynb_checkpoints/
-
-# Environment Variables
-.env
-.env.local
-.env.*.local
-
-# Data (DO NOT COMMIT TRAINING DATA)
-data/raw/*
-data/processed/*
-data/train/*
-data/val/*
-data/test/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-!data/train/.gitkeep
-!data/val/.gitkeep
-!data/test/.gitkeep
-!data/examples/
-
-# Models (DO NOT COMMIT MODEL WEIGHTS)
-models/base/*
-models/adapters/*
-models/checkpoints/*
-models/merged/*
-!models/base/.gitkeep
-!models/adapters/.gitkeep
-!models/checkpoints/.gitkeep
-!models/merged/.gitkeep
-
-# Outputs
-outputs/generations/*
-outputs/logs/*
-outputs/metrics/*
-outputs/reports/*
-outputs/checkpoints/*
-!outputs/generations/.gitkeep
-!outputs/logs/.gitkeep
-!outputs/metrics/.gitkeep
-!outputs/reports/.gitkeep
-!outputs/checkpoints/.gitkeep
-
-# Logs
-*.log
-logs/
-*.out
-
-# Training Artifacts
-runs/
-wandb/
-tensorboard/
-checkpoints/
-
-# Temporary Files
-*.tmp
-*.bak
-*.cache
-*.swp
-.cache/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
-.hypothesis/
-
-# Documentation Build
 docs/_build/
 docs/.doctrees/
 site/
 
-# Package Distribution
-*.whl
-*.tar.gz
+# ============================================================================
+# SYSTEM FILES
+# ============================================================================
 
-# System Files
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 Desktop.ini
+
+# ============================================================================
+# PACKAGE DISTRIBUTION
+# ============================================================================
+
+*.whl
+*.tar.gz
+*.zip
+
+# ============================================================================
+# BACKUP FILES
+# ============================================================================
+
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.tmp
+
+# ============================================================================
+# DATASET METADATA 
+# ============================================================================
+
+# URL lists with scraped sources
+urls.txt
+urls_*.txt
+scraped_urls.txt
+author_list.txt
+
+# Metadata that might reveal sources
+dataset_metadata.json
+scraper_log.json
+
+# ============================================================================
+# EXCEPTION: ALLOW THESE SPECIFIC FILES
+# ============================================================================
+
+# Keep directory structure
+!**/.gitkeep
+
+# Keep example configs (non-sensitive)
+!configs/**/*.yaml
+!configs/**/*.yml
+
+# Keep example data (sanitized only)
+!data/examples/sample_scenes.jsonl
+!data/examples/example_metadata.json
+
+# Keep documentation
+!docs/**/*.md
+!*.md
+
+# Keep requirements
+!requirements.txt
+!requirements-dev.txt
+
+# Keep license
+!LICENSE
+
+# Keep setup files
+!setup.py
+!pyproject.toml
+!MANIFEST.in
+
+# Keep source code
+!src/**/*.py
+
+# Keep tests
+!tests/**/*.py
+
+# Keep scripts
+!scripts/**/*.py
+
+# Keep configs
+!configs/**/*.yaml
+!configs/**/*.yml
+
+# Keep GitHub workflows
+!.github/**/*.yml
+!.github/**/*.md
