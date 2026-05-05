@@ -1,11 +1,11 @@
 # .gitignore
 # ============================================================================
 
-# Training Data (NEVER COMMIT)
-data/
-!data/examples/
-data/**/*
-!data/**/.gitkeep
+# Training Data (NEVER COMMIT) — anchored to repo root, does NOT match src/genfic/data/
+/data/
+!/data/examples/
+/data/**/*
+!/data/**/.gitkeep
 
 # Raw scraped content
 *.jsonl
@@ -181,6 +181,12 @@ Desktop.ini
 *.zip
 
 # ============================================================================
+# REFERENCE PDFS (papers, references — extracted into notes/memory, not tracked)
+# ============================================================================
+
+*.pdf
+
+# ============================================================================
 # BACKUP FILES
 # ============================================================================
 
@@ -200,6 +206,10 @@ urls.txt
 urls_*.txt
 scraped_urls.txt
 author_list.txt
+
+# Source/training-material directory (URL lists, discovered metadata,
+# eventually downloaded chapter text — never commit)
+source/
 
 # Metadata that might reveal sources
 dataset_metadata.json

@@ -1,162 +1,87 @@
-
 # GenFic
 
-Production-grade parameter-efficient fine-tuning toolkit for creative text generation.
+Parameter-efficient fine-tuning toolkit for **literary register adaptation**. One OPLoRA adapter per literary register, trained on Project Gutenberg public-domain prose, so a single base model can be conditionally steered into Victorian-formal, Romantic-ornate, Gothic-dark, plain-realist, or modernist-spare prose without losing its base instruction-following.
 
-## Project Aims
+The architecture extends two prior papers in this repo:
 
-GenFic provides an end-to-end pipeline for training and deploying custom language models specialized in creative fiction writing. The system focuses on:
+- **Springer paper** — LoRA on Mistral for literary style transfer.
+- **IEEE paper** — OPLoRA (orthogonal projection) + EWC against catastrophic forgetting; the §IV-D register-discrimination metrics (passive ratio, nominalization rate, lexical density, sentence length, type-token ratio) are the eval framework here.
 
-- High-quality narrative generation with consistent style and tone
-- Efficient fine-tuning on consumer hardware using LoRA/QLoRA
-- Automated quality control and evaluation frameworks
-- Multi-adapter management for different writing styles
-- Production-ready inference with post-processing pipelines
+## Why orthogonal projection
 
-## Target Models
+Plain LoRA on register-distinctive prose tends to overwrite the base model's instruction-following — the adapter's "default voice" comes to dominate, and the model stops obeying user briefs (length, tense, POV). OPLoRA constrains LoRA updates to lie in the orthogonal complement of the top-k singular directions of each base weight, which preserves the directions in W carrying the most pre-training information (instruction-following, factual recall) while still letting the adapter learn register. The eval question this project answers is whether OPLoRA-adapted models show measurable register shift on the §IV-D metrics *without* regression on a base instruction-following probe.
 
-Primary models for fine-tuning:
+## Training format
 
-**Mistral 3.2 3B**
-
-- Lightweight option for rapid iteration
-- Lower VRAM requirements (8-12GB)
-- Faster training and inference
-- Suitable for style transfer tasks
-
-**Mistral 7B Instruct**
-
-- Primary production model
-- Superior narrative coherence
-- Better character consistency
-- Optimal balance of quality and efficiency
-
-Both models support 4-bit quantization for deployment on consumer GPUs (16GB VRAM).
-
-## Project Structure
+Each chunk is presented as a Mistral instruction-tuning pair, with loss masked to the response only:
 
 ```
-genfic/
-├── src/genfic/              # Core package
-│   ├── training/            # LoRA training pipeline
-│   ├── inference/           # Generation and post-processing
-│   ├── data/                # Dataset preprocessing and validation
-│   ├── models/              # Model loading and adapter management
-│   ├── evaluation/          # Quality metrics and scoring
-│   ├── cli/                 # Command-line interface
-│   └── utils/               # Shared utilities
-├── configs/                 # YAML configuration files
-│   ├── training/            # Training configurations
-│   ├── inference/           # Generation parameters
-│   ├── models/              # Model specifications
-│   └── data/                # Data pipeline configs
-├── data/                    # Dataset storage (gitignored)
-│   ├── raw/                 # Source material
-│   ├── processed/           # Cleaned and formatted data
-│   ├── train/               # Training split
-│   ├── val/                 # Validation split
-│   └── test/                # Test split
-├── models/                  # Model storage (gitignored)
-│   ├── base/                # Base model weights
-│   ├── adapters/            # Trained LoRA adapters
-│   └── checkpoints/         # Training checkpoints
-├── outputs/                 # Generation outputs (gitignored)
-│   ├── generations/         # Generated text samples
-│   ├── logs/                # Training and inference logs
-│   └── metrics/             # Evaluation results
-├── scripts/                 # Automation scripts
-├── tests/                   # Test suite
-├── docs/                    # Documentation
-└── notebooks/               # Experimentation notebooks
+[INST] Continue this scene in {register} style: {brief} [/INST] {chapter_chunk}</s>
 ```
 
-## Planned Development Steps
+Briefs are synthesized offline from the chapter content using base Mistral-Instruct (1–3 sentence content-faithful summary). At training time, loss is computed only on `{chapter_chunk}</s>`; the prompt prefix is masked with `LOSS_IGNORE_INDEX = -100`.
 
-### Phase 1: Data Pipeline
+## Register clusters
 
-1. Dataset preprocessing and validation system
-2. Metadata extraction and tagging framework
-3. Quality filtering and consistency checks
-4. Train/validation/test split generation
-5. Instruction-response formatting pipeline
+Five clusters, defined in `src/genfic/registers.py`:
 
-### Phase 2: Training Infrastructure
+| Cluster              | Authors (PD)                                              | Style target                                              |
+|----------------------|-----------------------------------------------------------|-----------------------------------------------------------|
+| `victorian-formal`   | Austen, Trollope, Eliot, Gaskell                          | Periodic sentences, formal diction, free indirect style   |
+| `romantic-ornate`    | Brontës, Hawthorne, Scott                                 | Long sinuous sentences, elevated diction, interiority     |
+| `gothic-dark`        | Poe, Stoker, Le Fanu, M. R. James                         | Atmospheric, foreboding, archaic, ornate description      |
+| `plain-realist`      | Twain, London, Crane                                      | Short sentences, concrete diction, dialogue-forward       |
+| `modernist-spare`    | early Joyce (*Dubliners*), Sherwood Anderson, Lardner     | Spare, declarative, rhythm-driven, ellipsis               |
 
-1. LoRA configuration and hyperparameter management
-2. QLoRA training loop with gradient accumulation
-3. Checkpoint management and versioning
-4. Loss tracking and validation evaluation
-5. Multi-adapter training support
+Cluster validity (separation on the §IV-D axes) is checked by `scripts/build_register_clusters.py` using metrics from `scripts/style_profile.py`.
 
-### Phase 3: Inference Engine
+## Pipeline
 
-1. Context-aware prompt assembly system
-2. Generation parameter optimization
-3. Post-processing and cleanup pipeline
-4. Repetition detection and mitigation
-5. Quality scoring and filtering
+```
+ingest_gutenberg.py        → source/raw/gutenberg/{author}/{work}/chapter-NNN.txt
+                           → source/gutenberg_imported.jsonl
 
-### Phase 4: Evaluation Framework
+build_register_clusters.py → register_clusters.json + separation report
 
-1. Automated quality metrics (consistency, coherence)
-2. Human evaluation tooling
-3. A/B testing infrastructure
-4. Performance benchmarking
-5. Feedback loop integration
+synthesize_briefs.py       → source/briefs.jsonl  (one brief per chapter, GPU)
 
-### Phase 5: Production Deployment
+build_dataset.py --register {cluster}
+                           → source/{cluster}.h5  (input_ids, attention_mask, prompt_lengths)
 
-1. CLI interface implementation
-2. Batch generation pipeline
-3. Multi-adapter workflow management
-4. Performance optimization
-5. Documentation and examples
+train.py     --register {cluster}
+                           → runs/{cluster}/checkpoint-XXX
 
-## Technical Approach
+generate.py  --register {cluster} --brief "..."
+                           → register-shifted prose
+```
 
-**Fine-Tuning Method**: QLoRA (4-bit quantization + LoRA adapters)
+## Hyperparameters (defaults)
 
-- Target modules: q_proj, v_proj, k_proj, o_proj
-- Rank (r): 16-32
-- Alpha: 32-64
-- Dropout: 0.05-0.10
+Base: `mistralai/Mistral-7B-Instruct-v0.2`, 4-bit NF4 quantization.
 
-**Training Strategy**:
+LoRA: `r=32`, `alpha=64`, `dropout=0.1`, target modules q/k/v/o/gate/up/down_proj.
+LoRA+: `lr_a=1e-4`, `lr_b=8e-4` (η=8×), 8-bit AdamW, cosine schedule, warmup 3 %.
+OPLoRA: `k=64` — preserves enough of the top base-weight singular subspace that prompt templates still steer the model after fine-tuning.
+Per-author cap: `--max-chunks-per-author 200` so no single author dominates a cluster.
+Save: `save_steps=250` to catch the eval optimum cleanly.
 
-- Effective batch size: 16-32 (via gradient accumulation)
-- Learning rate: 1e-4 to 3e-4 with cosine decay
-- Warmup: 5-10% of total steps
-- Epochs: 3-5 with early stopping
+## Smoke test
 
-**Inference Optimization**:
+End-to-end on one cluster (Victorian-formal) before scaling to the rest:
 
-- Temperature: 0.7-0.85 for balanced creativity
-- Top-p: 0.90-0.95 nucleus sampling
-- Repetition penalty: 1.15-1.25
-- Context management via sliding windows
+1. `python scripts/ingest_gutenberg.py --cluster victorian-formal --max-works 3`
+2. `python scripts/build_register_clusters.py`
+3. `python scripts/synthesize_briefs.py --cluster victorian-formal`
+4. `python scripts/build_dataset.py --register victorian-formal`
+5. `python scripts/train.py --register victorian-formal --max-steps 50 --eval-steps 25`
+6. `python scripts/generate.py --register victorian-formal --brief "An afternoon visit to the parsonage."`
+7. Run `scripts/style_profile.py` on outputs vs. base; pass criterion is ≥3 of 5 register axes shifted toward the cluster's target band, with no regression on a base instruction-following probe.
 
-**Quality Control**:
+## Hardware
 
-- POV/tense consistency validation
-- Character name and trait verification
-- Repetition pattern detection
-- Lexical diversity scoring
-- Human-in-loop refinement workflow
-
-## Hardware Requirements
-
-**Minimum**:
-
-- GPU: 12GB VRAM
-- RAM: 16GB
-- Storage: 30GB
-
-**Recommended**:
-
-- GPU: 16GB VRAM (RTX 4080, RTX 5070 Ti)
-- RAM: 32GB
-- Storage: 100GB SSD
+- Minimum: 12 GB VRAM
+- Recommended: 16 GB VRAM (RTX 4080 / RTX 5070 Ti); 32 GB RAM; 100 GB SSD
 
 ## License
 
-MIT License - See LICENSE file for details.
+MIT — see `LICENSE`.
