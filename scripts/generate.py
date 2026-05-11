@@ -59,7 +59,8 @@ def main() -> int:
     g.add_argument("--brief", help="Inline brief text")
     g.add_argument("--brief-file", help="File containing the brief")
     p.add_argument("--system", default=None,
-                   help="Override the register's default system message")
+                   help="Override the system message (only used with --no-adapter; "
+                        "adapter mode uses the training-format prompt for parity)")
     p.add_argument("--max-tokens", type=int, default=1500)
     p.add_argument("--temperature", type=float, default=0.85)
     p.add_argument("--top-p", type=float, default=0.9)
@@ -87,8 +88,8 @@ def main() -> int:
             device_map="auto", torch_dtype=torch.bfloat16,
         )
         model.eval()
-        from genfic.inference.generate import _system_for_register
-        sys_prompt = args.system or _system_for_register(args.register)
+        from genfic.inference.generate import _baseline_system
+        sys_prompt = args.system or _baseline_system(args.register)
         prompt = f"[INST] {sys_prompt}\n\n{brief}\n\nBegin the scene now. [/INST]"
         if args.seed is not None:
             torch.manual_seed(args.seed)
@@ -109,12 +110,16 @@ def main() -> int:
                   f"Pass --adapter PATH or --no-adapter.", file=sys.stderr)
             return 2
         print(f"Loading adapter: {adapter}")
+        if args.system is not None:
+            print("WARNING: --system is ignored in adapter mode (training-format "
+                  "parity). Use --no-adapter if you want to override the system prompt.",
+                  file=sys.stderr)
         gen = GenFicGenerator(
             adapter_path=adapter, base_model=args.base, register=args.register,
         )
         print(f"Generating ({args.max_tokens} max tokens, temp={args.temperature}) ...")
         text = gen.generate(
-            brief, system=args.system,
+            brief,
             params=GenParams(
                 max_new_tokens=args.max_tokens,
                 temperature=args.temperature,

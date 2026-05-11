@@ -1,8 +1,8 @@
 """Generation pipeline: load Mistral-Instruct base + a register adapter, run a brief.
 
-The system prompt is register-aware: pass `register="victorian-formal"` and the
-generator reads `src/genfic/registers.py` to inject the appropriate style hint.
-Pass `system=...` to override entirely.
+The prompt prefix is identical to the training format (see `genfic.prompt`); the
+adapter is queried on-distribution. Style guidance is encoded by which register
+adapter is loaded, not by a separate system message.
 
 Examples
 --------
@@ -29,21 +29,25 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
+from genfic.prompt import format_prompt
 from genfic.registers import REGISTERS
 
 DEFAULT_BASE = "mistralai/Mistral-7B-Instruct-v0.2"
 
-GENERIC_SYSTEM = (
-    "You are an expert prose writer. Continue the requested scene in literary "
-    "English, no preamble or meta-commentary, no headings."
-)
 
+def _baseline_system(register: str | None) -> str:
+    """System prompt for the no-adapter baseline path only.
 
-def _system_for_register(register: str | None) -> str:
-    if register is None:
-        return GENERIC_SYSTEM
-    if register not in REGISTERS:
-        raise KeyError(f"Unknown register {register!r}. Known: {sorted(REGISTERS)}")
+    Used by `scripts/generate.py --no-adapter` to coax the un-tuned base model
+    into the target register. Adapter-mode inference does NOT use this — it uses
+    `format_prompt` for byte-identical parity with training.
+    """
+    generic = (
+        "You are an expert prose writer. Continue the requested scene in "
+        "literary English, no preamble or meta-commentary, no headings."
+    )
+    if register is None or register not in REGISTERS:
+        return generic
     return REGISTERS[register].style_hint + " No preamble or meta-commentary."
 
 
@@ -92,13 +96,16 @@ class GenFicGenerator:
     def generate(
         self,
         brief: str,
-        system: str | None = None,
         params: GenParams | None = None,
         **kwargs,
     ) -> str:
         params = params or GenParams(**kwargs)
-        sys_prompt = system if system is not None else _system_for_register(self.register)
-        prompt = f"[INST] {sys_prompt}\n\n{brief}\n\nBegin the scene now. [/INST]"
+        if self.register is None:
+            raise ValueError(
+                "GenFicGenerator requires a register name to build the training-"
+                "format prompt; pass register=... to the constructor."
+            )
+        prompt = format_prompt(self.register, brief)
 
         if params.seed is not None:
             torch.manual_seed(params.seed)

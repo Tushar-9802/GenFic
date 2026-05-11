@@ -47,6 +47,7 @@ import numpy as np  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
 from genfic.data.chunking import chunk_chapter  # noqa: E402
+from genfic.prompt import format_prompt  # noqa: E402
 from genfic.registers import REGISTERS  # noqa: E402
 
 
@@ -166,10 +167,7 @@ def main() -> int:
                 skipped_no_brief += 1
                 continue
 
-            prompt_text = (
-                f"[INST] Continue this scene in {register.display} style: "
-                f"{brief} [/INST] "
-            )
+            prompt_text = format_prompt(register, brief)
             prompt_ids = tok.encode(prompt_text, add_special_tokens=True)
             chunk_ids = list(ch.input_ids)
             # Always end with EOS so the model learns to stop after the response

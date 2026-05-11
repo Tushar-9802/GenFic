@@ -63,7 +63,8 @@ LoRA: `r=32`, `alpha=64`, `dropout=0.1`, target modules q/k/v/o/gate/up/down_pro
 LoRA+: `lr_a=1e-4`, `lr_b=8e-4` (η=8×), 8-bit AdamW, cosine schedule, warmup 3 %.
 OPLoRA: `k=64` — preserves enough of the top base-weight singular subspace that prompt templates still steer the model after fine-tuning.
 Per-author cap: `--max-chunks-per-author 200` so no single author dominates a cluster.
-Save: `save_steps=250` to catch the eval optimum cleanly.
+Save / eval: `save_steps=250`, `eval_steps=250`; best checkpoint by `eval_loss` is reloaded at end (`load_best_model_at_end=True`).
+Early stop: `--early-stop-patience 2 --early-stop-threshold 0.02` — training halts after two consecutive evals where `eval_loss` improves by less than 0.02.
 
 ## Smoke test
 
@@ -73,7 +74,7 @@ End-to-end on one cluster (Victorian-formal) before scaling to the rest:
 2. `python scripts/build_register_clusters.py`
 3. `python scripts/synthesize_briefs.py --cluster victorian-formal`
 4. `python scripts/build_dataset.py --register victorian-formal`
-5. `python scripts/train.py --register victorian-formal --max-steps 50 --eval-steps 25`
+5. `python scripts/train.py --register victorian-formal --max-steps 50 --eval-steps 25 --save-steps 25 --out runs/victorian-formal-smoke`
 6. `python scripts/generate.py --register victorian-formal --brief "An afternoon visit to the parsonage."`
 7. Run `scripts/style_profile.py` on outputs vs. base; pass criterion is ≥3 of 5 register axes shifted toward the cluster's target band, with no regression on a base instruction-following probe.
 

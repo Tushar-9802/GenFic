@@ -39,6 +39,7 @@ from transformers import (  # noqa: E402
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    EarlyStoppingCallback,
     Trainer,
     TrainerCallback,
     TrainingArguments,
@@ -122,8 +123,18 @@ def main() -> int:
     p.add_argument("--save-steps", type=int, default=250)
     p.add_argument("--eval-steps", type=int, default=250)
     p.add_argument("--logging-steps", type=int, default=20)
+    p.add_argument("--early-stop-patience", type=int, default=2,
+                   help="Stop after N consecutive evals with improvement < threshold")
+    p.add_argument("--early-stop-threshold", type=float, default=0.02,
+                   help="Minimum eval_loss improvement to reset patience")
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
+
+    if args.save_steps % args.eval_steps != 0:
+        print(f"ERROR: --save-steps ({args.save_steps}) must be a multiple of "
+              f"--eval-steps ({args.eval_steps}) so load_best_model_at_end works.",
+              file=sys.stderr)
+        return 2
 
     out_dir = REPO_ROOT / (args.out or f"runs/{args.register}")
     data_path = REPO_ROOT / (args.data or f"source/{args.register}.h5")
@@ -203,6 +214,9 @@ def main() -> int:
         save_strategy="steps",
         save_steps=args.save_steps,
         save_total_limit=3,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
         report_to=[],
         seed=args.seed,
         dataloader_num_workers=2,
@@ -213,7 +227,12 @@ def main() -> int:
         model, args.lr_a, args.lr_b, args.weight_decay
     )
 
-    callbacks = []
+    callbacks = [
+        EarlyStoppingCallback(
+            early_stopping_patience=args.early_stop_patience,
+            early_stopping_threshold=args.early_stop_threshold,
+        ),
+    ]
     if reprojector is not None:
         callbacks.append(OPLoRACallback(reprojector, model))
 
@@ -235,6 +254,8 @@ def main() -> int:
     print(f"  effective batch = {args.micro_batch * args.grad_accum}")
     print(f"  LRs: lora_A={args.lr_a}, lora_B={args.lr_b} (eta={args.lr_b/args.lr_a:.0f}x)")
     print(f"  OPLoRA: {'OFF' if args.no_oplora else f'k={args.oplora_k}'}")
+    print(f"  EarlyStopping: patience={args.early_stop_patience}, "
+          f"threshold={args.early_stop_threshold} on eval_loss")
     trainer.train()
 
     print("\nSaving final adapter...")
